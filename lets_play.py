@@ -17,3 +17,22 @@ plt.ylabel("Amplitude")
 plt.title("Neuralink Electrode Signal Waveform")
 plt.grid(True)
 plt.show()
+
+from scipy.fftpack import fft
+
+# Remove DC bias
+data_centered = data - np.mean(data)
+
+# Compute FFT on centered data
+fft_data = np.abs(fft(data_centered))
+freqs = np.fft.fftfreq(len(data_centered), 1/sr)
+
+
+# Plot FFT Spectrum
+plt.figure(figsize=(10, 4))
+plt.plot(freqs[:1000], fft_data[:1000])
+plt.xlabel("Frequency (Hz)")
+plt.ylabel("Magnitude")
+plt.title("Frequency Spectrum of Neural Data")
+plt.grid(True)
+plt.show()
