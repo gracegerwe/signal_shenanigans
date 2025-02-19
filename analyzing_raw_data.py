@@ -56,11 +56,11 @@ spike_indices = np.where(np.abs(filtered_data) > threshold)[0]
 min_spike_distance = int(0.01 * sr)  # 10ms refractory period
 spike_times = spike_indices[np.insert(np.diff(spike_indices) > min_spike_distance, 0, True)]
 
-num_spikes = len(spike_times)
-print(f"Total detected neural spikes: {num_spikes}")
-
 # **Inter-Spike Interval (ISI) Calculation**
 isi = np.diff(spike_times) / sr  # Convert samples to seconds
+
+num_spikes = len(spike_times)
+print(f"Total detected neural spikes: {num_spikes}")
 
 # Apply PCA to Extract Dominant Neural Components
 spike_signal = np.zeros_like(filtered_data)
