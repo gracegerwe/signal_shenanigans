@@ -126,10 +126,10 @@ for filename in sorted(filtered_data_dict.keys()):
 
                 all_spike_features.append([spike, min_amp, mid_amp, max_amp, min_time, mid_time, max_time, spike_prob])
 
-                # Print progress every 50 files
-                file_count += 1
-                if file_count % 50 == 0:
-                    print(f"Processed spike detection for {file_count} files...")
+        # Print progress every 50 files
+        file_count += 1
+        if file_count % 50 == 0:
+            print(f"Processed spike detection for {file_count} files...")
 
 # Final confirmation that all files have been processed for spikes
 print(f"Spike detection completed for all {file_count} files!")
@@ -141,7 +141,6 @@ plt.xlabel("File Index")
 plt.ylabel("Spike Count")
 plt.title("Spike Counts Across All Files")
 plt.grid(True)
-plt.show()
 
 plt.figure(figsize=(8, 5))
 plt.hist(all_isi, bins=50, edgecolor='black')
@@ -149,7 +148,6 @@ plt.xlabel("Inter-Spike Interval (s)")
 plt.ylabel("Count")
 plt.title("ISI Distribution Across All Files")
 plt.grid(True)
-plt.show()
 
 # Convert spike feature list to DataFrame
 spike_df = pd.DataFrame(
