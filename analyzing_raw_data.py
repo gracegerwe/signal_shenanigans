@@ -78,19 +78,20 @@ freqs_pca = np.fft.fftfreq(len(pca_signal), 1/sr)
 
 # Extract Features for Each Spike
 window_size = int(0.002 * sr)  # 2ms window (~40 samples at 20kHz)
+half_window = window_size // 2
 spike_features = []
 
 for spike in spike_times:
     if spike - window_size > 0 and spike + window_size < len(filtered_data):
-        spike_waveform = filtered_data[spike - window_size: spike + window_size]
+        spike_waveform = filtered_data[spike - half_window: spike + half_window]
 
         # Find key spike features
         min_amp = np.min(spike_waveform)  # Negative-going peak
         max_amp = np.max(spike_waveform)  # Positive peak
         mid_amp = spike_waveform[len(spike_waveform) // 2]  # Middle hump
 
-        min_time = (np.argmin(spike_waveform) - window_size // 2) / sr * 1000  # Convert to ms
-        max_time = (np.argmax(spike_waveform) - window_size // 2) / sr * 1000
+        min_time = (np.argmin(spike_waveform) - half_window) / sr * 1000  # Convert to ms
+        max_time = (np.argmax(spike_waveform) - half_window) / sr * 1000
         mid_time = 0  # Middle of waveform
 
         # Estimate probability (SNR-based)
