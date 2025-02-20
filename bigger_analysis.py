@@ -134,21 +134,6 @@ for filename in sorted(filtered_data_dict.keys()):
 # Final confirmation that all files have been processed for spikes
 print(f"Spike detection completed for all {file_count} files!")
 
-# Step 4: Plot aggregated results
-plt.figure(figsize=(10, 5))
-plt.plot(range(len(all_spike_counts)), all_spike_counts, marker='o', linestyle='-', color='b')
-plt.xlabel("File Index")
-plt.ylabel("Spike Count")
-plt.title("Spike Counts Across All Files")
-plt.grid(True)
-
-plt.figure(figsize=(8, 5))
-plt.hist(all_isi, bins=50, edgecolor='black')
-plt.xlabel("Inter-Spike Interval (s)")
-plt.ylabel("Count")
-plt.title("ISI Distribution Across All Files")
-plt.grid(True)
-
 # Convert spike feature list to DataFrame
 spike_df = pd.DataFrame(
     all_spike_features,
@@ -156,26 +141,33 @@ spike_df = pd.DataFrame(
              "Neg. Hump Time", "Mid Hump Time", "Pos. Hump Time", "Spike Probability"]
 )
 
-# Create subplots for better visualization
-fig, axs = plt.subplots(3, 1, figsize=(12, 10))
+fig, axs = plt.subplots(2, 2, figsize=(12, 8))
 
-axs[0].scatter(spike_df["Index"], spike_df["Neg. Hump Amp"], color='r', label="Neg. Hump Amp", alpha=0.7, s=10)
-axs[0].scatter(spike_df["Index"], spike_df["Pos. Hump Amp"], color='g', label="Pos. Hump Amp", alpha=0.7, s=10)
-axs[0].set_ylabel("Amplitude (μV)")
-axs[0].set_title("Spike Amplitudes Over Time")
-axs[0].legend()
-axs[0].grid(True)
+# Plot aggregated results
+axs[0, 0].plot(range(len(all_spike_counts)), all_spike_counts, marker='o', linestyle='-', color='b')
+axs[0, 0].set_xlabel("File Index")
+axs[0, 0].set_ylabel("Spike Count")
+axs[0, 0].set_title("Spike Counts Across All Files")
+axs[0, 0].grid(True)
 
-axs[1].scatter(spike_df["Index"], spike_df["Spike Probability"], color='b', label="Spike Probability", alpha=0.7, s=10)
-axs[1].set_ylabel("Spike Probability")
-axs[1].set_title("Spike Probability Over Time")
-axs[1].grid(True)
+# Plot ISI Distribution
+axs[0, 1].hist(isi, bins=50, edgecolor='black')
+axs[0, 1].set_xlabel("Inter-Spike Interval (s)")
+axs[0, 1].set_ylabel("Count")
+axs[0, 1].set_title("ISI Distribution (Neural Spike Timing)")
+axs[0, 1].grid(True)
 
-axs[2].hist(all_isi, bins=50, edgecolor='black', alpha=0.7, color='purple')
-axs[2].set_xlabel("Inter-Spike Interval (s)")
-axs[2].set_ylabel("Count")
-axs[2].set_title("ISI Distribution")
-axs[2].grid(True)
+axs[1, 0].scatter(spike_df["Index"], spike_df["Neg. Hump Amp"], color='r', label="Neg. Hump Amp", alpha=0.7, s=10)
+axs[1, 0].scatter(spike_df["Index"], spike_df["Pos. Hump Amp"], color='g', label="Pos. Hump Amp", alpha=0.7, s=10)
+axs[1, 0].set_ylabel("Amplitude (μV)")
+axs[1, 0].set_title("Spike Amplitudes Over Time")
+axs[1, 0].legend()
+axs[1, 0].grid(True)
+
+axs[1, 1].scatter(spike_df["Index"], spike_df["Spike Probability"], color='b', label="Spike Probability", alpha=0.7, s=10)
+axs[1, 1].set_ylabel("Spike Probability")
+axs[1, 1].set_title("Spike Probability Over Time")
+axs[1, 1].grid(True)
 
 plt.tight_layout()
 plt.show()
