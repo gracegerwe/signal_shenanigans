@@ -68,7 +68,7 @@ for filename in sorted(os.listdir(folder_path)):
         filtered_data_dict[filename] = filtered_data
 
         # Apply Median Filter for Motion Artifacts
-        filtered_data = medfilt(filtered_data, kernel_size=5)
+        filtered_data = medfilt(filtered_data, kernel_size=3)
 
         # Store filtered data for global thresholding
         all_filtered_data.extend(filtered_data)
@@ -213,20 +213,20 @@ print(f"Average Spike Probability: {average_spike_probability:.2f}")
 average_snr = spike_df.apply(lambda row: (row["Pos. Hump Amp"] - row["Neg. Hump Amp"]) / (2 * np.std(filtered_data)), axis=1).mean()
 print(f"Average SNR: {average_snr:.2f}")
 
-# Visualization of 20 Random Channels Over 5 Seconds
+# Visualization of 10 Random Channels Over 2ms
 plt.figure(figsize=(12, 6))
-random_channels = random.sample(range(len(filtered_data_dict.keys())), min(20, len(filtered_data_dict.keys())))
+random_channels = random.sample(range(len(filtered_data_dict.keys())), min(10, len(filtered_data_dict.keys())))
 
-spacing = 5000  # Increase spacing between channels
+spacing = 1000  # Further decrease spacing for closer visualization
 
 for i, filename in enumerate(random_channels):
     data = list(filtered_data_dict.values())[filename]
-    time_axis = np.linspace(0, 5, len(data[:sr * 5]))  # First 5 seconds
-    plt.plot(time_axis, data[:sr * 5] + i * spacing, label=f"Channel {i+1}")  # Offset for visibility
+    time_axis = np.linspace(0, 0.05, len(data[:int(sr * 0.05)]))  # First 20ms
+    plt.plot(time_axis, data[:int(sr * 0.05)] + i * spacing, label=f"Channel {i+1}")  # Offset for visibility
 
-plt.xlabel("Time (s)")
+plt.xlabel("Time (ms)")
 plt.ylabel("Relative Amplitude (µV)")
-plt.title("Neural Data Visualization (First 20 Channels)")
+plt.title("Neural Data Visualization (5 Random Channels)")
 plt.legend()
 plt.grid(True)
 plt.show()
