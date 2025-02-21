@@ -184,7 +184,7 @@ for filename in sorted(filtered_data_dict.keys()):
 # Final confirmation that all files have been processed for spikes
 print(f"Spike detection completed for all {file_count} files!")
 
-# Extract and visualize the first 5 action potentials in the first channel
+# Extract and visualize the first 3 action potentials in the first channel
 first_file = sorted(filtered_data_dict.keys())[0]  # First file
 filtered_data = filtered_data_dict[first_file]
 
@@ -217,10 +217,15 @@ for i in range(num_spikes):
 # Formatting
 plt.xlabel("Time (ms)")
 plt.ylabel("Voltage (µV) (Offset Applied)")
-plt.title("First 5 Detected Spikes in Channel 1")
+plt.title("First 3 Detected Spikes in Channel 1")
 plt.legend()
 plt.grid(True)
 plt.show()
+
+# Add this before plotting to verify different spike times
+print("Spike times (ms):")
+for i, spike_idx in enumerate(all_spike_indices[:3]):
+    print(f"Spike {i+1}: {spike_idx/sr * 1000:.2f} ms")
 
 # Convert spike feature list to DataFrame
 spike_df = pd.DataFrame(
