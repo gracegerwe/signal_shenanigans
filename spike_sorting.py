@@ -10,6 +10,8 @@ from scipy.fftpack import fft
 from scipy.signal import butter, filtfilt, iirnotch, medfilt
 from sklearn.decomposition import PCA
 from scipy.signal import find_peaks
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
 
 # Define folder path
 folder_path = "/Users/gracegerwe/Documents/Neuralink Raw Data"
@@ -54,35 +56,55 @@ def detect_spikes(data, threshold, sr):
     """
     min_spike_width = int(0.0002 * sr)  # 0.2ms minimum width
     max_spike_width = int(0.002 * sr)    # 2ms maximum width
+    min_spike_distance = int(0.002 * sr)  # Enforce minimum 2ms between spikes
     spikes = []
     
     # Find all threshold crossings
     threshold_crossings = np.where(data < -threshold)[0]
     
+    # Add minimum distance requirement
+    if len(threshold_crossings) > 0:
+        # Keep only peaks that are separated by at least min_spike_distance
+        keep_spike = np.insert(np.diff(threshold_crossings) >= min_spike_distance, 0, True)
+        threshold_crossings = threshold_crossings[keep_spike]
+    
     for i in threshold_crossings:
+        # Check if we have enough data for the window
         if i < min_spike_width or i > len(data) - max_spike_width:
             continue
             
         # Extract potential spike window
         window = data[i-min_spike_width:i+max_spike_width]
         
+        # Ensure window has enough points
+        if len(window) < 3:
+            continue
+            
         # Check for characteristic features
         min_idx = np.argmin(window)
         
-        # Compute slopes
-        pre_slope = np.mean(np.diff(window[:min_idx]))   # Should be negative (depolarization)
-        post_slope = np.mean(np.diff(window[min_idx:]))  # Should be positive (repolarization)
+        # Ensure we have enough points for slope calculation
+        if min_idx < 1 or min_idx >= len(window) - 1:
+            continue
+            
+        # Compute slopes with safety checks
+        pre_window = window[:min_idx]
+        post_window = window[min_idx:]
         
-        # Criteria for valid spike
-        is_valid_spike = (
-            pre_slope < -threshold/10 and          # Steep depolarization
-            post_slope > threshold/20 and          # Clear repolarization
-            min_idx > 2 and                        # Not at the very start
-            min_idx < len(window) - 2              # Not at the very end
-        )
-        
-        if is_valid_spike:
-            spikes.append(i)
+        if len(pre_window) > 1 and len(post_window) > 1:
+            pre_slope = np.mean(np.diff(pre_window))
+            post_slope = np.mean(np.diff(post_window))
+            
+            # Criteria for valid spike
+            is_valid_spike = (
+                pre_slope < -threshold/10 and          # Steep depolarization
+                post_slope > threshold/20 and          # Clear repolarization
+                min_idx > 2 and                        # Not at the very start
+                min_idx < len(window) - 2              # Not at the very end
+            )
+            
+            if is_valid_spike:
+                spikes.append(i)
     
     return np.array(spikes)
 
@@ -184,7 +206,7 @@ for filename in sorted(filtered_data_dict.keys()):
 # Final confirmation that all files have been processed for spikes
 print(f"Spike detection completed for all {file_count} files!")
 
-# Extract and visualize the first 3 action potentials in the first channel
+# Extract and visualize the first action potential in the first channel
 first_file = sorted(filtered_data_dict.keys())[0]  # First file
 filtered_data = filtered_data_dict[first_file]
 
@@ -217,7 +239,7 @@ for i in range(num_spikes):
 # Formatting
 plt.xlabel("Time (ms)")
 plt.ylabel("Voltage (µV) (Offset Applied)")
-plt.title("First 3 Detected Spikes in Channel 1")
+plt.title("First Spike Detected in Channel 1")
 plt.legend()
 plt.grid(True)
 plt.show()
@@ -274,7 +296,117 @@ for i, filename in enumerate(random_channels):
 
 plt.xlabel("Time (ms)")
 plt.ylabel("Relative Amplitude (µV)")
-plt.title("Neural Data Visualization (5 Random Channels)")
+plt.title("Neural Data Visualization (10 Random Channels)")
 plt.legend()
 plt.grid(True)
 plt.show()
+
+def sort_spikes(spike_waveforms, n_clusters=3):
+    """
+    Sort spikes using feature extraction and clustering
+    Parameters:
+        spike_waveforms: List of spike waveforms
+        n_clusters: Number of different neuron types to identify
+    Returns:
+        labels: Cluster assignments for each spike
+        features_df: DataFrame containing spike features
+    """
+    if len(spike_waveforms) < n_clusters:
+        return np.zeros(len(spike_waveforms)), None
+        
+    # Extract features from each spike
+    features = []
+    for waveform in spike_waveforms:
+        # Find the three key points (negative, middle, positive humps)
+        neg_idx = np.argmin(waveform)
+        neg_amp = waveform[neg_idx]
+        neg_time = neg_idx
+        
+        # Middle point (zero crossing after negative peak)
+        mid_idx = neg_idx + np.argmin(np.abs(waveform[neg_idx:]))
+        mid_amp = waveform[mid_idx] if mid_idx < len(waveform) else 0
+        mid_time = mid_idx
+        
+        # Positive peak after negative peak
+        pos_idx = neg_idx + np.argmax(waveform[neg_idx:])
+        pos_amp = waveform[pos_idx] if pos_idx < len(waveform) else 0
+        pos_time = pos_idx
+        
+        # Calculate spike probability based on SNR
+        noise_std = np.std(waveform[:10])  # Use first 10 samples as noise estimate
+        snr = abs(neg_amp) / noise_std if noise_std != 0 else 0
+        spike_prob = 1 / (1 + np.exp(-snr))  # Sigmoid function for probability
+        
+        features.append([neg_amp, mid_amp, pos_amp, 
+                        neg_time, mid_time, pos_time, 
+                        spike_prob])
+    
+    # Normalize features
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features)
+    
+    # Cluster spikes
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    labels = kmeans.fit_predict(features_scaled)
+    
+    # Create DataFrame with all features
+    features_df = pd.DataFrame(
+        features,
+        columns=["Neg. Hump Amp", "Mid Hump Amp", "Pos. Hump Amp",
+                 "Neg. Hump Time", "Mid Hump Time", "Pos. Hump Time",
+                 "Spike Probability"]
+    )
+    features_df["Neuron Class"] = labels
+    
+    return labels, features_df
+
+# After spike detection, collect waveforms and sort them
+spike_waveforms = []
+for spike in spike_times:
+    if spike - half_window > 0 and spike + half_window < len(filtered_data):
+        waveform = filtered_data[spike - half_window : spike + half_window]
+        spike_waveforms.append(waveform)
+
+# Sort spikes if we have enough
+if len(spike_waveforms) > 0:
+    spike_labels, features_df = sort_spikes(spike_waveforms)
+    features_df["Neuron Class"] = features_df["Neuron Class"] + 1
+    
+    print("\nNeuron Classification Criteria:")
+    print("Class 1 - Fast-Spiking Interneurons:")
+    print("- Narrow spike width (<0.5ms)")
+    print("- Small negative amplitude")
+    print("- Quick repolarization")
+    print("- High firing rate potential")
+    
+    print("\nClass 2 - Regular-Spiking Pyramidal Neurons:")
+    print("- Medium spike width (0.5-1.0ms)")
+    print("- Medium-large negative amplitude")
+    print("- Pronounced after-hyperpolarization")
+    print("- Regular firing pattern")
+    
+    print("\nClass 3 - Burst-Spiking Neurons:")
+    print("- Wide spike width (>1.0ms)")
+    print("- Large amplitude")
+    print("- Complex spike shape")
+    print("- Tendency for burst firing")
+    
+    print("\nNeuron Classification Results:")
+    class_counts = features_df["Neuron Class"].value_counts().sort_index()
+    
+    for class_num in class_counts.index:
+        count = class_counts[class_num]
+        class_data = features_df[features_df["Neuron Class"] == class_num]
+        
+        # Calculate detailed characteristics for this class
+        mean_neg_amp = class_data["Neg. Hump Amp"].mean()
+        mean_pos_amp = class_data["Pos. Hump Amp"].mean()
+        mean_width = (class_data["Pos. Hump Time"] - class_data["Neg. Hump Time"]).mean()
+        mean_prob = class_data["Spike Probability"].mean()
+        
+        print(f"\nNeuron Class {class_num}:")
+        print(f"Number of spikes: {count}")
+        print(f"Average spike width: {mean_width:.2f} samples")
+        print(f"Average negative amplitude: {mean_neg_amp:.2f} µV")
+        print(f"Average positive amplitude: {mean_pos_amp:.2f} µV")
+        print(f"Average spike probability: {mean_prob:.2%}")
