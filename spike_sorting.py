@@ -43,7 +43,50 @@ def wavelet_denoise(data, wavelet='db4', level=2):
     coeffs[1:] = [pywt.threshold(c, np.std(c), mode='soft') for c in coeffs[1:]]
     return pywt.waverec(coeffs, wavelet, mode="per")
 
-# Step 1: Loop through all files to collect filtered data (for global threshold)
+# Add this function after your existing filter functions
+def detect_spikes(data, threshold, sr):
+    """
+    Detect spikes with characteristic AP features:
+    1. Rapid depolarization (steep negative slope)
+    2. Peak amplitude above threshold
+    3. Repolarization phase (positive slope after peak)
+    4. Appropriate spike width (0.2-2ms)
+    """
+    min_spike_width = int(0.0002 * sr)  # 0.2ms minimum width
+    max_spike_width = int(0.002 * sr)    # 2ms maximum width
+    spikes = []
+    
+    # Find all threshold crossings
+    threshold_crossings = np.where(data < -threshold)[0]
+    
+    for i in threshold_crossings:
+        if i < min_spike_width or i > len(data) - max_spike_width:
+            continue
+            
+        # Extract potential spike window
+        window = data[i-min_spike_width:i+max_spike_width]
+        
+        # Check for characteristic features
+        min_idx = np.argmin(window)
+        
+        # Compute slopes
+        pre_slope = np.mean(np.diff(window[:min_idx]))   # Should be negative (depolarization)
+        post_slope = np.mean(np.diff(window[min_idx:]))  # Should be positive (repolarization)
+        
+        # Criteria for valid spike
+        is_valid_spike = (
+            pre_slope < -threshold/10 and          # Steep depolarization
+            post_slope > threshold/20 and          # Clear repolarization
+            min_idx > 2 and                        # Not at the very start
+            min_idx < len(window) - 2              # Not at the very end
+        )
+        
+        if is_valid_spike:
+            spikes.append(i)
+    
+    return np.array(spikes)
+
+# Step 1: Loop through all files to collect filtered data
 for filename in sorted(os.listdir(folder_path)):
     if filename.endswith(".wav"):
         file_path = os.path.join(folder_path, filename)
@@ -70,7 +113,7 @@ for filename in sorted(os.listdir(folder_path)):
         # Apply Median Filter for Motion Artifacts
         filtered_data = medfilt(filtered_data, kernel_size=3)
 
-        # Store filtered data for global thresholding
+        # Store filtered data
         all_filtered_data.extend(filtered_data)
 
         file_count += 1
@@ -89,16 +132,16 @@ for filename in sorted(filtered_data_dict.keys()):
     if filename.endswith(".wav"):
         # Retrieve precomputed filtered data
         filtered_data = filtered_data_dict[filename]
-
-        # Detect spikes using **global threshold**
-        spike_indices = np.where(np.abs(filtered_data) > global_threshold)[0]
-
-        # Apply refractory period (10ms)
-        min_spike_distance = int(0.01 * sr)
+        
+        # Detect spikes using improved detection
+        spike_indices = detect_spikes(filtered_data, global_threshold, sr)
+        
+        # Apply refractory period (2ms)
+        min_spike_distance = int(0.002 * sr)  # Shortened from 10ms to 2ms
         if len(spike_indices) > 0:
             spike_times = spike_indices[np.insert(np.diff(spike_indices) > min_spike_distance, 0, True)]
         else:
-            spike_times = np.array([])  # Ensure it's an empty array instead of causing an error
+            spike_times = np.array([])
 
         # Compute ISI
         isi = np.diff(spike_times) / sr
@@ -112,21 +155,25 @@ for filename in sorted(filtered_data_dict.keys()):
         for spike in spike_times:
             if spike - half_window > 0 and spike + half_window < len(filtered_data):
                 spike_waveform = filtered_data[spike - half_window: spike + half_window]
-
-                # Find spike features
+                
+                # Find spike features with more robust criteria
                 min_amp = np.min(spike_waveform)
                 max_amp = np.max(spike_waveform)
                 mid_amp = spike_waveform[len(spike_waveform) // 2]
-
-                min_time = (np.argmin(spike_waveform) - half_window) / sr * 1000
-                max_time = (np.argmax(spike_waveform) - half_window) / sr * 1000
+                
+                # Calculate timing features relative to spike peak
+                peak_idx = np.argmin(spike_waveform)
+                min_time = (peak_idx - half_window) / sr * 1000
+                max_time = (np.argmax(spike_waveform[peak_idx:]) + peak_idx - half_window) / sr * 1000
                 mid_time = 0
-
-                # Estimate probability
-                noise_std = np.std(filtered_data)
-                snr = (max_amp - min_amp) / (2 * noise_std)
+                
+                # More robust SNR calculation
+                noise_window = filtered_data[max(0, spike - window_size):spike]
+                noise_std = np.std(noise_window)
+                spike_amplitude = abs(min_amp - np.mean(noise_window))
+                snr = spike_amplitude / noise_std
                 spike_prob = 1 / (1 + np.exp(-snr))
-
+                
                 all_spike_features.append([spike, min_amp, mid_amp, max_amp, min_time, mid_time, max_time, spike_prob])
 
         # Print progress every 50 files
@@ -144,12 +191,8 @@ filtered_data = filtered_data_dict[first_file]
 # Ensure filtering did not flatten spikes too much
 filtered_data = filtered_data - np.mean(filtered_data)  # Centering the signal
 
-# Use find_peaks to detect both positive and negative spikes
-peak_indices, _ = find_peaks(filtered_data, height=global_threshold, prominence=global_threshold * 0.5, distance=int(0.001 * sr))
-neg_peak_indices, _ = find_peaks(-filtered_data, height=global_threshold, prominence=global_threshold * 0.5, distance=int(0.001 * sr))
-
-# Combine positive and negative spikes, then sort
-all_spike_indices = np.sort(np.concatenate((peak_indices, neg_peak_indices)))
+# Use detect_spikes instead of find_peaks
+all_spike_indices = detect_spikes(filtered_data, global_threshold, sr)
 
 if len(all_spike_indices) < 5:
     print(f"Warning: Only detected {len(all_spike_indices)} spikes, plotting all available.")
