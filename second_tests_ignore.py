@@ -125,7 +125,7 @@ axs[0, 1].set_title("ISI Distribution (Neural Spike Timing)")
 axs[0, 1].grid(True)
 
 # Plot 3: FFT of PCA-Processed Spikes
-axs[1, 0].plot(freqs_pca[:1000], fft_pca_spike[:1000])  # First 1000 bins
+axs[1, 0].plot(freqs_pca[:100], fft_pca_spike[:100])  # First 1000 bins
 axs[1, 0].set_xlabel("Frequency (Hz)")
 axs[1, 0].set_ylabel("Magnitude")
 axs[1, 0].set_title("FFT of PCA-Processed Neural Spikes")

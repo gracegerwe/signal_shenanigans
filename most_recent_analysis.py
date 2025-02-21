@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import scipy.io.wavfile as wav
 import pywt
 import os
+import random
 import pandas as pd
 import matplotlib.cm as cm
 from scipy.fftpack import fft
@@ -134,6 +135,44 @@ for filename in sorted(filtered_data_dict.keys()):
 # Final confirmation that all files have been processed for spikes
 print(f"Spike detection completed for all {file_count} files!")
 
+# Extract and visualize the first spike from the first file
+first_spike_waveform = None
+first_spike_time = None
+
+first_file = sorted(filtered_data_dict.keys())[0]
+filtered_data = filtered_data_dict[first_file]
+
+# Detect spikes in the first file
+spike_indices = np.where(np.abs(filtered_data) > global_threshold)[0]
+
+if len(spike_indices) > 0:
+    first_spike_time = spike_indices[0]  # Get the first detected spike
+    window_size = int(0.002 * sr)  # 2ms window (~40 samples at 20kHz)
+    half_window = window_size // 2
+
+    if first_spike_time - half_window > 0 and first_spike_time + half_window < len(filtered_data):
+        first_spike_waveform = filtered_data[first_spike_time - half_window: first_spike_time + half_window]
+
+# Plot the first spike
+if first_spike_waveform is not None:
+    time_axis = np.linspace(-half_window / sr * 1000, half_window / sr * 1000, len(first_spike_waveform))  # in ms
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(time_axis, first_spike_waveform, color='purple', linewidth=2, label="Spike Waveform")
+
+    # Plot threshold line (zero reference)
+    plt.axhline(0, color='gray', linestyle='--', linewidth=1)
+
+    # Labels and title
+    plt.xlabel("Time (ms)")
+    plt.ylabel("Normalized Voltage")
+    plt.title("First Detected Spike")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+else:
+    print("No spikes detected in the first file.")
+
 # Convert spike feature list to DataFrame
 spike_df = pd.DataFrame(
     all_spike_features,
@@ -170,4 +209,22 @@ axs[1, 1].set_title("Spike Probability Over Time")
 axs[1, 1].grid(True)
 
 plt.tight_layout()
+plt.show()
+
+# Visualization of 20 Random Channels Over 5 Seconds
+plt.figure(figsize=(12, 6))
+random_channels = random.sample(range(len(filtered_data_dict.keys())), min(20, len(filtered_data_dict.keys())))
+
+spacing = 5000  # Increase spacing between channels
+
+for i, filename in enumerate(random_channels):
+    data = list(filtered_data_dict.values())[filename]
+    time_axis = np.linspace(0, 5, len(data[:sr * 5]))  # First 5 seconds
+    plt.plot(time_axis, data[:sr * 5] + i * spacing, label=f"Channel {i+1}")  # Offset for visibility
+
+plt.xlabel("Time (s)")
+plt.ylabel("Relative Amplitude (µV)")
+plt.title("Neural Data Visualization (First 20 Channels)")
+plt.legend()
+plt.grid(True)
 plt.show()
