@@ -9,6 +9,7 @@ import matplotlib.cm as cm
 from scipy.fftpack import fft
 from scipy.signal import butter, filtfilt, iirnotch, medfilt
 from sklearn.decomposition import PCA
+from scipy.signal import find_peaks
 
 # Define folder path
 folder_path = "/Users/gracegerwe/Documents/Neuralink Raw Data"
@@ -135,43 +136,47 @@ for filename in sorted(filtered_data_dict.keys()):
 # Final confirmation that all files have been processed for spikes
 print(f"Spike detection completed for all {file_count} files!")
 
-# Extract and visualize the first spike from the first file
-first_spike_waveform = None
-first_spike_time = None
-
-first_file = sorted(filtered_data_dict.keys())[0]
+# Extract and visualize the first 5 action potentials in the first channel
+first_file = sorted(filtered_data_dict.keys())[0]  # First file
 filtered_data = filtered_data_dict[first_file]
 
-# Detect spikes in the first file
-spike_indices = np.where(np.abs(filtered_data) > global_threshold)[0]
+# Ensure filtering did not flatten spikes too much
+filtered_data = filtered_data - np.mean(filtered_data)  # Centering the signal
 
-if len(spike_indices) > 0:
-    first_spike_time = spike_indices[0]  # Get the first detected spike
-    window_size = int(0.002 * sr)  # 2ms window (~40 samples at 20kHz)
-    half_window = window_size // 2
+# Use find_peaks to detect both positive and negative spikes
+peak_indices, _ = find_peaks(filtered_data, height=global_threshold, prominence=global_threshold * 0.5, distance=int(0.001 * sr))
+neg_peak_indices, _ = find_peaks(-filtered_data, height=global_threshold, prominence=global_threshold * 0.5, distance=int(0.001 * sr))
 
-    if first_spike_time - half_window > 0 and first_spike_time + half_window < len(filtered_data):
-        first_spike_waveform = filtered_data[first_spike_time - half_window: first_spike_time + half_window]
+# Combine positive and negative spikes, then sort
+all_spike_indices = np.sort(np.concatenate((peak_indices, neg_peak_indices)))
 
-# Plot the first spike
-if first_spike_waveform is not None:
-    time_axis = np.linspace(-half_window / sr * 1000, half_window / sr * 1000, len(first_spike_waveform))  # in ms
+if len(all_spike_indices) < 5:
+    print(f"Warning: Only detected {len(all_spike_indices)} spikes, plotting all available.")
+num_spikes = min(5, len(all_spike_indices))  # Ensure we don't exceed available spikes
 
-    plt.figure(figsize=(8, 5))
-    plt.plot(time_axis, first_spike_waveform, color='purple', linewidth=2, label="Spike Waveform")
+window_size = int(0.007 * sr)  # 7ms window (~140 samples at 20kHz)
+half_window = window_size // 2
 
-    # Plot threshold line (zero reference)
-    plt.axhline(0, color='gray', linestyle='--', linewidth=1)
+plt.figure(figsize=(10, 6))
 
-    # Labels and title
-    plt.xlabel("Time (ms)")
-    plt.ylabel("Normalized Voltage")
-    plt.title("First Detected Spike")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-else:
-    print("No spikes detected in the first file.")
+# Stack spikes with vertical offsets for clear visualization
+offset = np.max(np.abs(filtered_data)) * 1.2  # Dynamically set offset for better separation
+for i in range(num_spikes):
+    spike_time = all_spike_indices[i]
+
+    if spike_time - half_window > 0 and spike_time + half_window < len(filtered_data):
+        spike_waveform = filtered_data[spike_time - half_window : spike_time + half_window]
+        time_axis = np.linspace(0, 7, len(spike_waveform))  # Time in ms
+
+        plt.plot(time_axis, spike_waveform + i * offset, linewidth=2, label=f"Spike {i+1}")
+
+# Formatting
+plt.xlabel("Time (ms)")
+plt.ylabel("Voltage (µV) (Offset Applied)")
+plt.title("First 5 Detected Spikes in Channel 1")
+plt.legend()
+plt.grid(True)
+plt.show()
 
 # Convert spike feature list to DataFrame
 spike_df = pd.DataFrame(
