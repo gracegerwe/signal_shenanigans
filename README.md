@@ -90,6 +90,18 @@ For each neuron class, the pipeline outputs:
 - Average spike probability
 - Overall SNR and quality metrics
 
+## **Example Output**
+
+### **Spike Waveforms (Detected Action Potentials)**
+
+
+
+### **Neuron Classification (K-Means Clustering)**
+
+
+
+### **ISI Distribution (Neural Firing Rate Analysis)**
+
 ## Possible Extensions
 
 - Implement more advanced spike sorting algorithms (e.g., GMM, template matching, t-SNE/UMAP visualization)
