@@ -29,15 +29,15 @@ scikit-learn
 
 The pipeline applies a series of filters to clean the raw neural recordings:
 
-- **DC Bias Removal**: Centers the signal around zero
-- **Bandpass Filtering (300-3000 Hz)**: Isolates the frequency range of action potentials
-- **Notch Filtering (60Hz, 120Hz, 180Hz)**: Removes power line interference
-- **Wavelet Denoising**: Applies soft thresholding to wavelet coefficients
+- **DC Bias Removal**: Centers the signal around zero.
+- **Bandpass Filtering (300-3000 Hz)**: Isolates the frequency range of action potentials ([`bandpass_filter`](process_neural_data.py#L29)).
+- **Notch Filtering (60Hz, 120Hz, 180Hz)**: Removes power line interference ([`notch_filter`](process_neural_data.py#L38)).
+- **Wavelet Denoising**: Applies soft thresholding to wavelet coefficients ([`wavelet_denoise`](process_neural_data.py#L47)).
 - **Median Filtering**: Removes motion artifacts
 
 ### 2. Spike Detection
 
-The algorithm identifies spikes based on the following criteria:
+The algorithm ([`detect_spikes`](process_neural_data.py#L59)) identifies spikes based on the following criteria:
 
 - Peak amplitude exceeding a data-derived threshold
 - Appropriate waveform shape (rapid depolarization and repolarization)
@@ -54,11 +54,16 @@ For each detected spike, the pipeline extracts:
 
 ### 4. Spike Sorting
 
-The pipeline uses K-means clustering with feature standardization to identify different neuron types:
+The pipeline ([`sort_spikes`](process_neural_data.py#L160)) uses K-means clustering with feature standardization to identify different neuron types:
 
 - **Fast-Spiking Interneurons**: Narrow spikes with quick repolarization
 - **Regular-Spiking Pyramidal Neurons**: Medium-width spikes with pronounced after-hyperpolarization
 - **Burst-Spiking Neurons**: Wide spikes with complex waveform shape
+
+- **Visualization:**
+  - Plots **raw and filtered neural signals**.
+  - Displays **spike waveforms** and **ISI distributions**.
+  - Visualizes **neuron classification results**.
 
 ## Usage
 
